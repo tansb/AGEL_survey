@@ -1,0 +1,25 @@
+name: hst-pipeline
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python>=3.9
+  - numpy
+  - pandas
+  - astropy
+  - astroquery
+  - reproject
+  - h5py
+  - matplotlib
+  - scipy
+  - seaborn
+  - scikit-image
+  - pillow
+  - opencv          # imported as cv2 in 6.5-Reproject_and_Rescale.ipynb
+  - drizzlepac      # STScI drizzling; conda-forge is the recommended install route
+  - jupyter         # to run the standalone 6.5 notebook
+  - pip:
+    - lenstronomy   # gravitational-lens modelling (offset-fitter step)
+    - aplpy         # FITS image display (postage-stamp step)
+    - astroalign    # image registration (6.5 notebook)

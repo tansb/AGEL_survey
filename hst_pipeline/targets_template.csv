@@ -1,0 +1,4 @@
+objname,catalogue_objname,RAJ2000,DECJ2000,z_spec_SRC_Spectral_Observations_Tally,z_source (from DR2 Redshifts),z_spec_SRC,z_spec_DE_Spectral_Observations_Tally,z_deflector (from DR2 Redshifts),z_spec_DE
+AGEL110725+245943A,J110725.2+245943,166.855,24.9954,2.763,,,,0.529,
+AGEL001030-431515A,J001030.2-431515,2.626,-43.254,1.815,,,0.304,,
+AGEL999999+000000A,MAST-TARGET-NAME-HERE,0.0,0.0,,,,,,

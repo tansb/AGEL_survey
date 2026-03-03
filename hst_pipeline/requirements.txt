@@ -1,0 +1,21 @@
+# Pip-only fallback — conda (environment.yml) is strongly preferred because
+# drizzlepac has compiled dependencies that conda handles more reliably.
+#
+# To install: pip install -r requirements.txt
+
+numpy
+pandas
+astropy
+astroquery
+reproject
+h5py
+matplotlib
+scipy
+seaborn
+scikit-image
+Pillow
+opencv-python     # imported as cv2 (6.5 notebook only)
+drizzlepac        # may require additional system libs; prefer conda for this one
+lenstronomy
+aplpy
+astroalign

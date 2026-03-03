@@ -1,0 +1,47 @@
+# ── Large data files ──────────────────────────────────────────────────────────
+*.fits
+*.fit
+*.fz
+*.h5
+*.hdf5
+
+# ── Pipeline outputs ──────────────────────────────────────────────────────────
+# Postage-stamp PNGs are generated products, not source files
+*_image_L3.png
+*_RGB_image_L3.png
+rgb_cube_L3.fits
+rgb_cube_L3_2d.fits
+
+# ── AstroDrizzle / TweakReg ancillary files ───────────────────────────────────
+*.coo
+*.match
+*.list
+*_crclean.fits
+*shift*.txt
+astrodrizzle.log
+tweakreg.log
+
+# ── macOS junk ────────────────────────────────────────────────────────────────
+.DS_Store
+._*
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.env
+.venv
+env/
+venv/
+
+# ── Editor / IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
