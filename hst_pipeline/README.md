@@ -1,6 +1,8 @@
-## Preface Notes from CW: 
+# Preface Notes from CW: 
 Before you begin running code I *highly* suggest
+
 (1) organizing your data such that you have your codes in your main working directory and then all the observing data organized as /AGEL_name/HST/proposalID_filter/ (e.g. if you have F140W and F200LP data for the target AGEL110725+245943A from the Glazebrook 16773 proposal, you would probably want to organize your data as /AGEL110725+245943A/HST/16773_F140W/ and /AGEL110725+245943A/HST/16773_F200LP/)
+
 (2) creating a CSV file (I decided to go with one file per proposal) that contains the target name recorded in MAST, the matching AGEL target ID, the target RA and DEC coordinates, and any additional redshift info that the source may have. Helpful to start with the Parent Catalog in Airtable, and filter/extract the info you need from there. What I ended up doing was download the CSV of observations for a given proposal from the MAST search, cross-matched that to the AGEL parents catalog, and then just created a new CSV file with the relevant columns. Then I just add sources to this CSV as they come in for any on-going programs (e.g. 17307).
 
 # HST Pipeline — Final Scripts
@@ -61,7 +63,7 @@ Copy `targets_template.csv`, rename it, to e.g. `{proposal_id}_targets.csv`, and
 # 2. Run the reduction pipeline
 python hst_reduction.py
 
-# 3. (Optional) Run 6.5 notebook for any alt_run targets
+# 3. (Optional) Run Reproject_and_Rescale notebook for any alt_run targets
 # 4. Run the products pipeline
 python hst_products.py
 ```
