@@ -1,8 +1,6 @@
-# Preface Notes from CW: 
+## Preface Notes from CW: 
 Before you begin running code I *highly* suggest
-
 (1) organizing your data such that you have your codes in your main working directory and then all the observing data organized as /AGEL_name/HST/proposalID_filter/ (e.g. if you have F140W and F200LP data for the target AGEL110725+245943A from the Glazebrook 16773 proposal, you would probably want to organize your data as /AGEL110725+245943A/HST/16773_F140W/ and /AGEL110725+245943A/HST/16773_F200LP/)
-
 (2) creating a CSV file (I decided to go with one file per proposal) that contains the target name recorded in MAST, the matching AGEL target ID, the target RA and DEC coordinates, and any additional redshift info that the source may have. Helpful to start with the Parent Catalog in Airtable, and filter/extract the info you need from there. What I ended up doing was download the CSV of observations for a given proposal from the MAST search, cross-matched that to the AGEL parents catalog, and then just created a new CSV file with the relevant columns. Then I just add sources to this CSV as they come in for any on-going programs (e.g. 17307).
 
 # HST Pipeline — Final Scripts
@@ -19,7 +17,7 @@ Two Python scripts are used for batch processing of HST imaging. A shared config
 | `postage_stamp_config.csv` | Per-target thumbnail size, colour scale, skip/alt flags |
 | `hst_reduction.py` | download → drizzle → reproject → green image |
 | `hst_products.py` | cutouts → offset fitter → postage stamps |
-| `6.5-Reproject_and_Rescale.ipynb` | Standalone manual alignment for problem targets (see below) |
+| `Reproject_and_Rescale.ipynb` | Standalone manual alignment for problem targets (see below) |
 
 ---
 
@@ -63,12 +61,12 @@ Copy `targets_template.csv`, rename it, to e.g. `{proposal_id}_targets.csv`, and
 # 2. Run the reduction pipeline
 python hst_reduction.py
 
-# 3. (Optional) Run Reproject_and_Rescale notebook for any alt_run targets
+# 3. (Optional) Run Reproject notebook for any alt_run targets
 # 4. Run the products pipeline
 python hst_products.py
 ```
 
-Both scripts accept `--steps` and `--target` flags for partial runs and single-target testing (see Usage section).
+Both scripts accept `--steps` and `--target` flags for partial runs and single-target testing. `hst_products.py` additionally accepts `--ra`, `--dec`, `--z-src`, `--z-def`, and `--proposal-id` so a single target can be run without a CSV entry (see Usage section).
 
 ---
 
@@ -231,20 +229,51 @@ Covers cutout creation, offset alignment, and postage stamp creation.
 |---|---|---|
 | 1 | `1` | Builds lenstronomy-ready HDF5 + FITS cutouts centred on target RA/Dec |
 | 2 | `2` | Fits Sersic centroids in each band; writes `ra_shift`/`dec_shift` into cutout files |
-| 3 | `3` | Makes grayscale, 2-colour, or 3-colour PNG postage stamps |
+| 3 | `3` | Makes grayscale, 2-colour, or 3-colour PNG postage stamps; respects `--target` for single-target output |
 
 ### Usage
 
 ```bash
-# Run all three steps
+# ── Full CSV (default) ─────────────────────────────────────────────────
+# Run all three steps across every target in ACTIVE_TARGETS_CSV
 python hst_products.py
 
-# Make postage stamps only (cutouts and offsets already done)
-python hst_products.py --steps 3
+# ── Single target already in the CSV ──────────────────────────────────
+# All three steps
+python hst_products.py --target AGEL110725+245943A
 
-# Test cutout building on one target
-python hst_products.py --steps 1 --target AGEL110725+245943A
+# Postage stamps only
+python hst_products.py --target AGEL110725+245943A --steps 3
+
+# ── Single target NOT yet in the CSV ──────────────────────────────────
+# --ra and --dec are required; the script will prompt whether to append
+# the target to the CSV for future full-CSV runs
+python hst_products.py --target AGEL999999+000000A --ra 12.345 --dec -45.678
+
+# With optional redshifts
+python hst_products.py --target AGEL999999+000000A \
+    --ra 12.345 --dec -45.678 --z-src 1.83 --z-def 0.45
+
+# ── Override proposal ID without editing config.py ────────────────────
+python hst_products.py --target AGEL110725+245943A --proposal-id 16773
+
+# ── Preview cutout sizes before committing to a run ───────────────────
+python hst_products.py --preview
+python hst_products.py --target AGEL110725+245943A --preview
 ```
+
+### CLI flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--steps` | `123` | Steps to run, e.g. `"3"` for postage stamps only |
+| `--target` | *(full CSV)* | Run only this AGEL target name |
+| `--ra` | — | Target RA in decimal degrees — required if target is not in the CSV |
+| `--dec` | — | Target Dec in decimal degrees — required if target is not in the CSV |
+| `--z-src` | `None` | Source redshift (stored as `-1` if omitted) |
+| `--z-def` | `None` | Deflector redshift (stored as `-1` if omitted) |
+| `--proposal-id` | config.py value | Override `ACTIVE_PROPOSAL_ID` for this run only |
+| `--preview` | `False` | Show cutout-size contact sheet; prompts before continuing |
 
 ### Postage stamp config CSV
 
@@ -256,7 +285,7 @@ python hst_products.py --steps 1 --target AGEL110725+245943A
 | `thumb_size_arcsec` | int | Thumbnail diameter in arcseconds (default 20) |
 | `clims_set` | int | Colour-scale preset 1–15 (default 1; see script for limits per preset) |
 | `skip` | bool | Set `True` to exclude a target from all postage-stamp output |
-| `alt_run` | bool | Set `True` for targets processed with the 6.5 notebook (uses different input filenames) |
+| `alt_run` | bool | Set `True` for targets processed with the Reproject notebook (uses different input filenames) |
 
 To add a new target not in the CSV, the script falls back to `thumb_size = 20` and `clims_set = 1`. Add a row to the CSV only when you need non-default values.
 
@@ -280,7 +309,7 @@ python hst_reduction.py
 
 # 3. Inspect drizzled outputs — check alignment and CR rejection for a sample of targets
 
-# 4. For any alt_run targets, open and run 6.5-Reproject_and_Rescale.ipynb
+# 4. For any alt_run targets, open and run Reproject_and_Rescale.ipynb
 #    then set alt_run = True in postage_stamp_config.csv for those targets
 
 # 5. Build cutouts, fit offsets, make stamps

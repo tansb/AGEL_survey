@@ -9,11 +9,28 @@ Runs three steps in sequence using the drizzled data produced by hst_reduction.p
 
 Usage:
     python hst_products.py [--steps 123] [--target AGEL...] [--preview]
+                           [--ra DEG] [--dec DEG] [--z-src Z] [--z-def Z]
+                           [--proposal-id ID]
 
-    --steps    string of step numbers to run (default: all, e.g. '23' skips cutouts)
-    --target   run only one target (useful for testing / re-running a single object)
-    --preview  show a contact-sheet grid of proposed cutout sizes before running;
-               prompts for confirmation before proceeding
+    --steps       string of step numbers to run (default: all, e.g. '23' skips cutouts)
+    --target      run only this target (AGEL name); uses the full CSV if omitted
+    --ra / --dec  coordinates in decimal degrees — required when --target is given and
+                  the target is not already in the CSV
+    --z-src       source redshift (optional, stored as -1 if omitted)
+    --z-def       deflector redshift (optional, stored as -1 if omitted)
+    --proposal-id override ACTIVE_PROPOSAL_ID from config.py for this run
+    --preview     show a contact-sheet grid of proposed cutout sizes before running;
+                  prompts for confirmation before proceeding
+
+Single-target examples:
+    # Target already in CSV
+    python hst_products.py --target AGEL110725+245943A
+
+    # Target not yet in CSV — provide coordinates directly
+    python hst_products.py --target AGEL110725+245943A --ra 166.855 --dec 24.995
+
+    # Same, and append the new target to the CSV for future runs
+    # (the script will prompt interactively)
 """
 
 import argparse
@@ -672,8 +689,15 @@ def _make_color_postage(red, green, blue, input_dir, output_dir,
     plt.close('all')
 
 
-def run_step3():
+def run_step3(target_filter=None, extra_target_info=None):
+    """
+    target_filter     : if set, only this target is processed (respects --target flag)
+    extra_target_info : dict with keys ra/dec/z_src/z_def — used when a target was
+                        supplied via CLI and may not be in any proposal CSV
+    """
     print("\n=== STEP 3: Postage stamps ===")
+    if target_filter:
+        print(f"    (single-target mode: {target_filter})")
 
     # Load per-target config CSV
     ps_cfg = pd.read_csv(POSTAGE_STAMP_CONFIG_CSV).set_index('objname')
@@ -696,10 +720,18 @@ def run_step3():
                     'z_def': z_def, 'z_src': z_src,
                 }
 
+    # Inject CLI-supplied info for targets not covered by any proposal CSV
+    if target_filter and extra_target_info and target_filter not in target_info:
+        target_info[target_filter] = extra_target_info
+
     POSTAGE_STAMP_DIR.mkdir(parents=True, exist_ok=True)
 
     for target_dir in sorted(p for p in MAIN_DIR.iterdir() if p.is_dir()):
         target = target_dir.name
+
+        # Single-target filter
+        if target_filter and target != target_filter:
+            continue
 
         # Check skip flag in config CSV
         if target in ps_cfg.index and ps_cfg.loc[target, 'skip']:
@@ -812,33 +844,115 @@ def main():
     parser.add_argument('--steps', default='123',
                         help='Steps to run, e.g. "23" to skip cutout building (default: 123)')
     parser.add_argument('--target', default=None,
-                        help='Run only this target (AGEL name)')
+                        help='AGEL target name; uses the full CSV if omitted')
+    parser.add_argument('--ra', type=float, default=None,
+                        help='Target RA in decimal degrees (required if target not in CSV)')
+    parser.add_argument('--dec', type=float, default=None,
+                        help='Target Dec in decimal degrees (required if target not in CSV)')
+    parser.add_argument('--z-src', type=float, default=None,
+                        help='Source redshift (optional; stored as -1 if omitted)')
+    parser.add_argument('--z-def', type=float, default=None,
+                        help='Deflector redshift (optional; stored as -1 if omitted)')
+    parser.add_argument('--proposal-id', default=None,
+                        help='Override ACTIVE_PROPOSAL_ID from config.py for this run')
     parser.add_argument('--preview', action='store_true',
                         help='Show cutout-size preview grid before running; prompts to confirm')
     args = parser.parse_args()
     steps = set(args.steps)
 
-    df = pd.read_csv(ACTIVE_TARGETS_CSV)
-    if args.target:
-        df = df[df['objname'] == args.target]
+    proposal_id = args.proposal_id or ACTIVE_PROPOSAL_ID
 
-    print(f"Loaded {len(df)} target(s) from {ACTIVE_TARGETS_CSV}")
+    # ── Build working dataframe and extra_target_info for step 3 ──────────────
+    extra_target_info = None   # metadata for run_step3 if target is not in any proposal CSV
+
+    if args.target:
+        # Try to find the target in the active CSV first
+        df_full = pd.read_csv(ACTIVE_TARGETS_CSV) if ACTIVE_TARGETS_CSV.exists() else pd.DataFrame()
+        df = df_full[df_full['objname'] == args.target] if not df_full.empty else pd.DataFrame()
+
+        if not df.empty:
+            # Found in CSV — use that row; also pre-build extra_target_info as a
+            # fallback for step 3 in case this proposal isn't in PROPOSAL_CSVS yet
+            row = df.iloc[0]
+            z_def, z_src = _resolve_z(row)
+            extra_target_info = {
+                'ra':    float(row.get('RAJ2000', 0)),
+                'dec':   float(row.get('DECJ2000', 0)),
+                'z_src': z_src,
+                'z_def': z_def,
+            }
+            print(f"Found '{args.target}' in {ACTIVE_TARGETS_CSV}")
+
+        else:
+            # Not in CSV — coordinates must be supplied on the command line
+            if args.ra is None or args.dec is None:
+                print(f"Error: '{args.target}' was not found in {ACTIVE_TARGETS_CSV}.")
+                print("Supply --ra and --dec to run without a CSV entry, or add the")
+                print("target to the CSV manually and re-run.")
+                return
+
+            print(f"'{args.target}' not found in CSV — using coordinates from command line.")
+            extra_target_info = {
+                'ra':    args.ra,
+                'dec':   args.dec,
+                'z_src': args.z_src,
+                'z_def': args.z_def,
+            }
+
+            # Build a minimal single-row dataframe for steps 1 and 2
+            df = pd.DataFrame([{
+                'objname':                              args.target,
+                'catalogue_objname':                   args.target,
+                'RAJ2000':                             args.ra,
+                'DECJ2000':                            args.dec,
+                'z_spec_SRC':                          args.z_src,
+                'z_spec_DE':                           args.z_def,
+                'z_spec_SRC_Spectral_Observations_Tally': float('nan'),
+                'z_source (from DR2 Redshifts)':       float('nan'),
+                'z_spec_DE_Spectral_Observations_Tally':  float('nan'),
+                'z_deflector (from DR2 Redshifts)':    float('nan'),
+            }])
+
+            # Offer to append this target to the CSV for future runs
+            if ACTIVE_TARGETS_CSV.exists():
+                print(f"\nWould you like to append '{args.target}' to {ACTIVE_TARGETS_CSV}")
+                print("so it is included in future full-CSV runs?")
+                ans = input("Append? [y/N]: ").strip().lower()
+                if ans == 'y':
+                    updated = pd.concat([df_full, df], ignore_index=True)
+                    updated.to_csv(ACTIVE_TARGETS_CSV, index=False)
+                    print(f"  Appended to {ACTIVE_TARGETS_CSV}")
+                    print("  Note: update 'catalogue_objname' in the CSV if you need")
+                    print("  this target's MAST name for the download step.")
+
+    else:
+        # No --target: run the full CSV
+        if not ACTIVE_TARGETS_CSV.exists():
+            print(f"Error: CSV not found at {ACTIVE_TARGETS_CSV}.")
+            print("Set ACTIVE_TARGETS_CSV in config.py, or use --target with --ra/--dec")
+            print("for a single-target run without a CSV.")
+            return
+        df = pd.read_csv(ACTIVE_TARGETS_CSV)
+
+    print(f"\nProcessing {len(df)} target(s)  |  proposal: {proposal_id}")
     print(f"Running steps: {', '.join(sorted(steps))}")
 
+    # ── Optional cutout preview ───────────────────────────────────────────────
     if args.preview:
         print(f"\nShowing cutout preview (DEFAULT_CUTOUT_SIZE_ARCSEC = {DEFAULT_CUTOUT_SIZE_ARCSEC}\")...")
-        preview_cutouts(df, ACTIVE_PROPOSAL_ID, ACTIVE_FILTERS, ACTIVE_CAMERA)
+        preview_cutouts(df, proposal_id, ACTIVE_FILTERS, ACTIVE_CAMERA)
         ans = input("\nProceed with selected steps? [y/N]: ").strip().lower()
         if ans != 'y':
             print("Aborted.")
             return
 
+    # ── Run selected steps ────────────────────────────────────────────────────
     if '1' in steps:
-        run_step1(df.to_dict('records'), ACTIVE_PROPOSAL_ID, ACTIVE_FILTERS, ACTIVE_CAMERA)
+        run_step1(df.to_dict('records'), proposal_id, ACTIVE_FILTERS, ACTIVE_CAMERA)
     if '2' in steps:
-        run_step2(df, ACTIVE_PROPOSAL_ID, ACTIVE_FILTERS, ACTIVE_CAMERA)
+        run_step2(df, proposal_id, ACTIVE_FILTERS, ACTIVE_CAMERA)
     if '3' in steps:
-        run_step3()
+        run_step3(target_filter=args.target, extra_target_info=extra_target_info)
 
     print("\nProducts pipeline complete.")
 
