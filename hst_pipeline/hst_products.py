@@ -62,6 +62,7 @@ from config import (
     ACTIVE_TARGETS_CSV,
     DATA_DIR,
     DEFAULT_CUTOUT_SIZE_ARCSEC,
+    IR_DRIZZLE_DEFAULTS,
     LENS_PROC_DIR,
     MAIN_DIR,
     OFFSET_NUM_DUP,
@@ -69,6 +70,7 @@ from config import (
     POSTAGE_STAMP_CONFIG_CSV,
     POSTAGE_STAMP_DIR,
     PROPOSAL_CSVS,
+    UV_DRIZZLE_DEFAULTS,
 )
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -423,7 +425,12 @@ def run_step1(targets, proposal_id, filters, camera):
         z_def, z_src = _resolve_z(row)
 
         for band in filters:
-            pix_scale = 0.08 if band == 'F140W' else 0.05
+            # Must track whatever hst_reduction.py actually drizzled this band
+            # at (IR_DRIZZLE_DEFAULTS / UV_DRIZZLE_DEFAULTS ['pixel_size'] in
+            # config.py) -- a literal 0.08/0.05 here would silently desync
+            # from a changed default and build a cutout of the wrong angular
+            # size (right pixel count, wrong footprint) with no error.
+            pix_scale = IR_DRIZZLE_DEFAULTS['pixel_size'] if band == 'F140W' else UV_DRIZZLE_DEFAULTS['pixel_size']
             suffix    = 'drz' if band == 'F140W' else 'drc'
             fits_path = f"{MAIN_DIR}/{object_name}/HST/{proposal_id}_{band}/{object_name}_{band}_{camera}_{suffix}_sci.fits"
             if not Path(fits_path).exists():
@@ -431,7 +438,7 @@ def run_step1(targets, proposal_id, filters, camera):
                 continue
 
             output_h5 = f"{MAIN_DIR}/{object_name}/HST/{proposal_id}_{band}/{object_name}_{band}_{camera}_cutout_L3.h5"
-            psf_path  = LENS_PROC_DIR / f"lens_processing/psf_model_{band}.h5"
+            psf_path  = LENS_PROC_DIR / f"psf_model_{band}.h5"
             weight_path = f"{MAIN_DIR}/{object_name}/HST/{proposal_id}_{band}/{object_name}_{band}_{camera}_{suffix}_wht.fits"
 
             sc = SkyCoord(ra_deg * u.deg, dec_deg * u.deg)
@@ -466,7 +473,7 @@ def _import_data(object_name, propno, band, camera):
             'transform_pix2angle': f['transform_pix2angle'][()],
         }
 
-    psf_path = LENS_PROC_DIR / f"lens_processing/psf_model_{band}.h5"
+    psf_path = LENS_PROC_DIR / f"psf_model_{band}.h5"
     if psf_path.exists():
         with h5py.File(psf_path, 'r') as f:
             kernel = f['kernel_point_source'][()]
@@ -599,18 +606,24 @@ plt.rc('font', family='serif')
 
 def _make_grayscale_postage(img1, output_dir, object_name, ra, dec,
                              zsrc1, zdef, band, zsrc2=None,
-                             thumb_size_arcsec=20, scalebar_size_arcsec=1, clims_set=1):
+                             thumb_size_arcsec=20, scalebar_size_arcsec=1, clims_set=1,
+                             vmin1=None, vmax1=None, vmin2=None, vmax2=None):
     import aplpy
     fig = plt.figure(figsize=(12, 6))
     f  = aplpy.FITSFigure(img1, figure=fig, subplot=(1, 2, 1), north=True)
     f2 = aplpy.FITSFigure(img1, figure=fig, subplot=(1, 2, 2), north=True)
 
     if clims_set == 2:
-        f.show_grayscale(invert=True, vmin=-0.2, vmax=2)
-        f2.show_grayscale(invert=True, vmin=-0.1, vmax=0.4)
+        default_vmin1, default_vmax1, default_vmin2, default_vmax2 = -0.2, 2, -0.1, 0.4
     else:
-        f.show_grayscale(invert=True, vmin=-0.05, vmax=0.2)
-        f2.show_grayscale(invert=True, vmin=-0.05, vmax=0.1)
+        default_vmin1, default_vmax1, default_vmin2, default_vmax2 = -0.05, 0.2, -0.05, 0.1
+
+    f.show_grayscale(invert=True,
+                      vmin=default_vmin1 if vmin1 is None else vmin1,
+                      vmax=default_vmax1 if vmax1 is None else vmax1)
+    f2.show_grayscale(invert=True,
+                       vmin=default_vmin2 if vmin2 is None else vmin2,
+                       vmax=default_vmax2 if vmax2 is None else vmax2)
 
     img_size = (thumb_size_arcsec * u.arcsec).to(u.deg).value
     for panel in (f, f2):
@@ -654,9 +667,12 @@ _CLIMS = {
 def _make_color_postage(red, green, blue, input_dir, output_dir,
                         target, ra, dec, filt_labels,
                         zsrc1, zdef, zsrc2=None,
-                        thumb_size_arcsec=20, scalebar_size_arcsec=1, clims_set=1):
+                        thumb_size_arcsec=20, scalebar_size_arcsec=1, clims_set=1,
+                        clims_override=None):
     import aplpy
-    clims = _CLIMS.get(clims_set, _CLIMS[1])
+    clims = dict(_CLIMS.get(clims_set, _CLIMS[1]))
+    if clims_override:
+        clims.update({k: v for k, v in clims_override.items() if v is not None})
     rgb_cube = f'{input_dir}/rgb_cube_L3.fits'
     rgb_img  = f'{input_dir}/{target}_{"_".join(filt_labels)}_RGB_image_L3.png'
 
@@ -687,6 +703,14 @@ def _make_color_postage(red, green, blue, input_dir, output_dir,
     out_name = f'{output_dir}/{target}_{"_".join(filt_labels)}_{thumb_size_arcsec}arcs_image_L3.png'
     f.save(out_name, dpi=1200)
     plt.close('all')
+
+
+def _cfg_override(cfg_row, col):
+    """Read an optional numeric color-limit override from a postage_stamp_config.csv row."""
+    if cfg_row is None or col not in cfg_row.index:
+        return None
+    v = cfg_row[col]
+    return None if pd.isna(v) else float(v)
 
 
 def run_step3(target_filter=None, extra_target_info=None):
@@ -738,6 +762,11 @@ def run_step3(target_filter=None, extra_target_info=None):
             continue
         if target.endswith('B'):
             continue
+        if not (target_dir / 'HST').is_dir():
+            # Not a target folder (e.g. a stray non-pipeline directory dropped
+            # into MAIN_DIR) -- skip rather than crash the whole run on the
+            # unguarded .iterdir() below.
+            continue
 
         info = target_info.get(target, {})
         ra   = info.get('ra')
@@ -763,6 +792,18 @@ def run_step3(target_filter=None, extra_target_info=None):
         alt_run         = bool(cfg_row['alt_run'])           if cfg_row is not None else False
         scalebar_size   = 2
 
+        # Optional per-target color-limit overrides (blank in the CSV = fall back
+        # to the clims_set preset for that specific value)
+        clims_override = {
+            'vmin_r': _cfg_override(cfg_row, 'vmin_r'), 'vmax_r': _cfg_override(cfg_row, 'vmax_r'),
+            'vmin_g': _cfg_override(cfg_row, 'vmin_g'), 'vmax_g': _cfg_override(cfg_row, 'vmax_g'),
+            'vmin_b': _cfg_override(cfg_row, 'vmin_b'), 'vmax_b': _cfg_override(cfg_row, 'vmax_b'),
+        }
+        gray_vmin1 = _cfg_override(cfg_row, 'vmin_gray1')
+        gray_vmax1 = _cfg_override(cfg_row, 'vmax_gray1')
+        gray_vmin2 = _cfg_override(cfg_row, 'vmin_gray2')
+        gray_vmax2 = _cfg_override(cfg_row, 'vmax_gray2')
+
         # Discover which filters are present for this target
         filts_list  = []
         propids_list = []
@@ -781,6 +822,12 @@ def run_step3(target_filter=None, extra_target_info=None):
         print(f"  {target}: {filts_list}")
 
         # Determine camera per filter
+        # KNOWN LIMITATION (see README.md "Known limitations"): a filter not
+        # in this map defaults to 'WFC3' (line below), which is wrong for a
+        # non-WFC3, non-F606W filter -- add it here. The >=3-filter branch
+        # further below additionally hardcodes F140W/F606W/F200LP by name as
+        # red/green/blue; a 3rd+ filter outside that exact set silently
+        # produces no 3-colour image (falls through with nothing matching).
         cam_map = {'F140W': 'WFC3', 'F200LP': 'WFC3', 'F606W': 'ACS'}
 
         hst_dir = target_dir / 'HST'
@@ -798,7 +845,8 @@ def run_step3(target_filter=None, extra_target_info=None):
             _make_grayscale_postage(
                 str(imgs[0]), str(POSTAGE_STAMP_DIR),
                 target, ra, dec, zsrc1=z_src, zdef=z_def, band=band, zsrc2=z_src_2,
-                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set)
+                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set,
+                vmin1=gray_vmin1, vmax1=gray_vmax1, vmin2=gray_vmin2, vmax2=gray_vmax2)
 
         elif len(filts_list) == 2:
             filt1, filt2 = filts_list[0], filts_list[1]
@@ -820,7 +868,8 @@ def run_step3(target_filter=None, extra_target_info=None):
                 red, green, blue, str(hst_dir), str(POSTAGE_STAMP_DIR),
                 target, ra, dec, filt_labels=[filt1, filt2],
                 zsrc1=z_src, zdef=z_def, zsrc2=z_src_2,
-                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set)
+                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set,
+                clims_override=clims_override)
 
         elif len(filts_list) >= 3:
             # 3-colour: F140W=red, F606W=green (scaled), F200LP=blue (scaled)
@@ -835,7 +884,8 @@ def run_step3(target_filter=None, extra_target_info=None):
                 red, green, blue, str(hst_dir), str(POSTAGE_STAMP_DIR),
                 target, ra, dec, filt_labels=[filt1, filt2, filt3],
                 zsrc1=z_src, zdef=z_def, zsrc2=z_src_2,
-                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set)
+                thumb_size_arcsec=thumb_size, scalebar_size_arcsec=scalebar_size, clims_set=clims_set,
+                clims_override=clims_override)
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 

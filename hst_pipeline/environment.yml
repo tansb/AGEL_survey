@@ -16,10 +16,12 @@ dependencies:
   - seaborn
   - scikit-image
   - pillow
-  - opencv          # imported as cv2 in 6.5-Reproject_and_Rescale.ipynb
+  - opencv          # imported as cv2 in Reproject_and_Rescale.ipynb
   - drizzlepac      # STScI drizzling; conda-forge is the recommended install route
-  - jupyter         # to run the standalone 6.5 notebook
+  - photutils       # source detection (pipeline_qc.py: astrometric preflight, N=2 CR source protection)
+  - jupyter         # to run the standalone Reproject_and_Rescale.ipynb
   - pip:
     - lenstronomy   # gravitational-lens modelling (offset-fitter step)
     - aplpy         # FITS image display (postage-stamp step)
-    - astroalign    # image registration (6.5 notebook)
+    - astroalign    # image registration (Reproject_and_Rescale.ipynb)
+    - astroscrappy  # L.A.Cosmic cosmic-ray rejection (pipeline_qc.py, N=2 UV drizzle path)

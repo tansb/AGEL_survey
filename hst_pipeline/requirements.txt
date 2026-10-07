@@ -14,8 +14,12 @@ scipy
 seaborn
 scikit-image
 Pillow
-opencv-python     # imported as cv2 (6.5 notebook only)
+opencv-python     # imported as cv2 (Reproject_and_Rescale.ipynb only)
 drizzlepac        # may require additional system libs; prefer conda for this one
+photutils         # source detection (pipeline_qc.py: astrometric preflight, N=2 CR source protection)
+jupyter           # to run Reproject_and_Rescale.ipynb
 lenstronomy
 aplpy
-astroalign
+astroalign        # image registration (Reproject_and_Rescale.ipynb only)
+astroscrappy      # L.A.Cosmic cosmic-ray rejection -- hit on any UV filter with exactly 2 exposures
+                  # (e.g. GO-16773's F200LP typically has 2), not just an edge case
