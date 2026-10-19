@@ -2,7 +2,7 @@
 
 A collection of Python pipelines for processing and analysing data from the
 [AGEL](https://agel.readthedocs.io) (the ARC Gravitational-arc Eye Legacysurvey) gravitational-lens catalogue.
-Two independent packages are included; each has its own environment and README.
+Three independent packages are included; each has its own environment and README.
 
 ---
 
@@ -83,6 +83,48 @@ for adding a new proposal.
 
 ---
 
+### 3. `kcwi_lensfit/` — KCWI/KCRM IFU Redshift & Kinematics Pipeline
+
+A GUI- and command-line-driven pipeline (`kcwilensfit`) that takes reduced
+Keck/KCWI (blue) and KCRM (red) integral-field cubes of a lens system and
+produces redshifts for the deflector and every lensed source image, plus the
+deflector's stellar velocity dispersion. Compound lenses (several deflectors
+and/or source planes) are supported.
+
+**Key features:**
+- Tabbed Tkinter GUI (Data → Instrument → Noise & sky → Apertures → Extraction →
+  Redshift & kinematics → Output) with every setting pre-filled and documented,
+  or a headless run driven by the same JSON config
+- Blue and/or red cubes (either arm is optional); blue/red spatial registration
+  from the header WCS (default), identity, cross-correlation, or manual offsets
+- Apertures from DS9 region files (pixel or fk5/icrs WCS), auto-detection, or
+  click-to-place; spectral deblending of lens and arc light, or plain aperture sums
+- Measured (not assumed) noise, including the covariance from resampled slicer
+  data; sky-line, telluric and light-pollution masking
+- Redshift scans with pPXF continuum fits (deflectors) and matched-filter
+  emission/absorption line searches (sources), bootstrap errors, and a
+  lensing-geometry consistency check across the redshift "ladder"
+- Images of the same source can be inverse-variance combined; individual fits can
+  be cleared before saving, and **Clear all (new target)** resets the session
+- Outputs: `redshifts.csv`, `results.json`, `spectra.fits` / ASCII spectra,
+  diagnostic figures, `report.md`, and `config_used.json` for exact re-runs
+
+**Entry point:** `kcwilensfit` (installed console command; `kcwi_lensfit/kcwilensfit/`)
+
+**Quick start:**
+```bash
+cd kcwi_lensfit
+conda env create -f environment.yml && conda activate kcwilensfit
+kcwilensfit demo --run        # synthetic compound lens: checks the install end to end
+kcwilensfit gui               # open the GUI (optionally: kcwilensfit gui my_config.json)
+kcwilensfit run my_config.json
+```
+
+See [kcwi_lensfit/README.md](kcwi_lensfit/README.md) for the GUI walk-through,
+settings reference (`docs/config_reference.md`), and the science notes.
+
+---
+
 ## Repository layout
 
 ```
@@ -91,13 +133,21 @@ AGEL_survey/
 │   ├── archive_pipeline.py   # single-script archive cross-match + stamp pipeline
 │   ├── environment.yml
 │   └── requirements.txt
-└── hst_pipeline/
-    ├── hst_reduction.py      # download, drizzle, reproject, green channel
-    ├── hst_products.py       # cutouts, offset fitting, postage stamps
-    ├── config.py             # all paths and proposal settings — edit first
-    ├── postage_stamp_config.csv  # per-target thumbnail and colour-scale overrides
-    ├── targets_template.csv  # template for your per-proposal targets CSV
-    ├── Reproject_and_Rescale.ipynb  # manual alignment for problem targets
+├── hst_pipeline/
+│   ├── hst_reduction.py      # download, drizzle, reproject, green channel
+│   ├── hst_products.py       # cutouts, offset fitting, postage stamps
+│   ├── config.py             # all paths and proposal settings — edit first
+│   ├── postage_stamp_config.csv  # per-target thumbnail and colour-scale overrides
+│   ├── targets_template.csv  # template for your per-proposal targets CSV
+│   ├── Reproject_and_Rescale.ipynb  # manual alignment for problem targets
+│   ├── environment.yml
+│   └── requirements.txt
+└── kcwi_lensfit/
+    ├── kcwilensfit/          # package: pipeline, fitting, plotting, GUI (gui/)
+    ├── docs/                 # config_reference.md, science_notes.md
+    ├── examples/             # example_config.json, DS9 region file
+    ├── tests/                # pytest suite (incl. synthetic compound-lens recovery)
+    ├── pyproject.toml
     ├── environment.yml
     └── requirements.txt
 ```
@@ -106,13 +156,14 @@ AGEL_survey/
 
 ## Requirements
 
-Both packages require **Python ≥ 3.9** and conda (recommended). The two
+All packages require **Python ≥ 3.9** and conda (recommended). The three
 environments are independent — install them separately.
 
 | Package | Core extra dependencies |
 |---|---|
 | `agel_xmatch` | `astropy`, `astroquery`, `reproject` |
 | `hst_pipeline` | all of the above + `drizzlepac`, `lenstronomy`, `h5py`, `astroalign`, `opencv-python` |
+| `kcwi_lensfit` | `numpy`, `scipy`, `astropy`, `matplotlib`, `ppxf`, plus Tkinter for the GUI (no MAST account needed) |
 
 > **drizzlepac note:** `drizzlepac` has compiled C extensions. Installing via
 > conda (`conda-forge`) is strongly recommended over pip, which may fail on some
@@ -120,8 +171,10 @@ environments are independent — install them separately.
 > [mamba](https://mamba.readthedocs.io) as a drop-in replacement:
 > `mamba env create -f environment.yml`.
 
-A free [MAST account](https://auth.mast.stsci.edu/login) with `astroquery`
-credentials configured is required for any step that downloads HST or JWST data.
+For `agel_xmatch` and `hst_pipeline`, a free [MAST account](https://auth.mast.stsci.edu/login) with `astroquery`
+credentials configured is required for any step that downloads HST or JWST data. `kcwi_lensfit` works on
+already-reduced local cubes; its stellar-population template libraries (E-MILES, etc.) are downloaded once on
+first use to `~/.cache/kcwilensfit`.
 
 ---
 

@@ -1,0 +1,2 @@
+[console_scripts]
+kcwilensfit = kcwilensfit.cli:main

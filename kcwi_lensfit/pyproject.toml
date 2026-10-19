@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kcwilensfit"
+version = "0.1.0"
+description = "Redshifts and kinematics of strong gravitational lenses (incl. compound lenses) from Keck KCWI/KCRM IFU cubes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.8",
+    "astropy>=5.2",
+    "matplotlib>=3.6",
+    "ppxf>=9.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+kcwilensfit = "kcwilensfit.cli:main"
+
+[tool.setuptools]
+packages = ["kcwilensfit", "kcwilensfit.gui"]
+
+[tool.setuptools.package-data]
+kcwilensfit = ["data/kc96/*.fits"]
+
+[tool.pytest.ini_options]
+markers = ["slow: end-to-end tests that run the full pipeline"]

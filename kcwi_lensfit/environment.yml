@@ -1,0 +1,13 @@
+name: kcwilensfit
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - tk            # the GUI uses Tkinter
+  - numpy
+  - scipy
+  - astropy
+  - matplotlib
+  - pip
+  - pip:
+      - ppxf
+      - -e .
