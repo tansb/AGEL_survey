@@ -232,7 +232,7 @@ def combined_member_ids(pipe) -> set:
 
 
 def fig_spectra(pipe, aids: Optional[Sequence[str]] = None, smooth_A: float = 0.0, z_marks: Optional[Dict[str, float]] = None,
-                windows=None, despike: bool = True) -> Figure:
+                windows=None, despike: bool = True, blank_windows: bool = True) -> Figure:
     from .extraction import smooth_for_display
     if aids is None:
         hide = combined_member_ids(pipe)
@@ -254,7 +254,7 @@ def fig_spectra(pipe, aids: Optional[Sequence[str]] = None, smooth_A: float = 0.
             ax.axvspan(max(lo, xlo), min(hi, xhi), color="0.88", zorder=0)
         clean = {}
         for arm, s in sp.arms.items():
-            s, _ = _clean_for_display(s, windows, despike)
+            s, _ = _clean_for_display(s, windows if blank_windows else None, despike)
             clean[arm] = s
             d = smooth_for_display(s, smooth_A)
             ax.plot(d.wave, d.flux, lw=0.6, color="tab:blue" if arm == "blue" else "tab:red", label=arm)

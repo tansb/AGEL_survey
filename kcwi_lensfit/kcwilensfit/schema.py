@@ -16,13 +16,12 @@ from typing import Any, Dict, List, Optional, Sequence
 from .constants import (BLUE_GRATINGS, LIBRARY_CHOICES, RED_GRATINGS, SLICER_NAMES)
 
 STAGES = [
-    ("inputs", "1. Data"),
-    ("instrument", "2. Instrument"),
-    ("noise", "3. Noise & sky"),
-    ("apertures", "4. Apertures"),
-    ("extraction", "5. Extraction"),
-    ("fitting", "6. Redshift & kinematics"),
-    ("output", "7. Output"),
+    ("inputs", "1. Data & instrument"),
+    ("noise", "2. Noise & sky"),
+    ("apertures", "3. Apertures"),
+    ("extraction", "4. Extraction"),
+    ("fitting", "5. Redshift & kinematics"),
+    ("output", "6. Output"),
 ]
 
 
@@ -40,6 +39,7 @@ class FieldSpec:
     minimum: Optional[float] = None
     maximum: Optional[float] = None
     unit: str = ""
+    blank_default: bool = False   # numeric field shown EMPTY (not 0) when it holds its 'use the default' value
     filetypes: Optional[Sequence[str]] = None  # for 'path' fields
 
 
@@ -58,7 +58,7 @@ FIELDS: List[FieldSpec] = [
       filetypes=["*.fits", "*.fits.gz"]),
     F("blue_var_cube", "Blue variance cube (optional)", "path", "",
       "Variance cube ('_vcubes') matching the blue flux cube. If given it is used as the noise "
-      "model; otherwise the noise is measured from a source-free sky box (stage 3).", "inputs",
+      "model; otherwise the noise is measured from a source-free sky box (stage 2).", "inputs",
       advanced=True, filetypes=["*.fits", "*.fits.gz"]),
     F("red_var_cube", "Red variance cube (optional)", "path", "",
       "Variance cube matching the red flux cube (see above).", "inputs", advanced=True,
@@ -67,69 +67,69 @@ FIELDS: List[FieldSpec] = [
       "Everything the pipeline writes (spectra, plots, tables, the settings actually used) goes here.",
       "inputs"),
 
-    # --------------------------------------------------------------- 2. INSTRUMENT
+    # ---------------------------------------------- 1b. INSTRUMENT (same tab as Data)
     F("blue_wave_frame", "Blue wavelength frame", "choice", "auto",
       "Whether the blue cube's wavelength axis is in AIR or VACUUM. 'auto' reads CTYPE3 "
       "(AWAV = air, WAVE = vacuum) and assumes air if absent. Getting this wrong shifts every "
-      "line by ~85 km/s (dz ~ 3e-4) and goes straight into the redshift.", "instrument",
+      "line by ~85 km/s (dz ~ 3e-4) and goes straight into the redshift.", "inputs",
       choices=["auto", "air", "vacuum"], group="Wavelength frame"),
     F("red_wave_frame", "Red wavelength frame", "choice", "auto",
       "Same for the red cube. 'auto' reads CTYPE3 and assumes VACUUM if absent (the KCRM DRP "
-      "convention).", "instrument", choices=["auto", "air", "vacuum"], group="Wavelength frame"),
+      "convention).", "inputs", choices=["auto", "air", "vacuum"], group="Wavelength frame"),
     F("velocity_correction", "Velocity-frame correction", "choice", "none",
       "'none': use wavelengths as they are in the file (the Keck DRP normally already writes "
       "heliocentric-corrected cubes; check the VCORR/VCORRTYP keywords printed in the log). "
       "'header': ADD the header VCORR on top (only if the file is NOT already corrected). "
-      "'manual': add the value set under Advanced. Double-correcting shifts z by ~1e-4.", "instrument",
+      "'manual': add the value set under Advanced. Double-correcting shifts z by ~1e-4.", "inputs",
       choices=["none", "header", "manual"], group="Wavelength frame"),
     F("manual_vcorr_kms", "Manual velocity correction [km/s]", "float", 0.0,
       "Used only if the correction mode is 'manual'. Positive values make redshifts larger.",
-      "instrument", unit="km/s", group="Wavelength frame"),
+      "inputs", unit="km/s", group="Wavelength frame"),
     F("blue_wave_min", "Blue min wavelength [A]", "float", 0.0,
       "Trim the blue cube to this observed wavelength. 0 = automatic (header WAVGOOD0 if present, "
       "else the first valid channel). Edges of the bandpass are low-throughput and noisy.",
-      "instrument", unit="A", group="Usable wavelength range", advanced=True),
+      "inputs", unit="A", group="Usable wavelength range", advanced=True),
     F("blue_wave_max", "Blue max wavelength [A]", "float", 0.0,
       "As above for the red end of the blue cube. 0 = automatic. The dichroic cross-over "
       "region near 5600 A is usually the least reliable part of the blue arm.",
-      "instrument", unit="A", group="Usable wavelength range", advanced=True),
+      "inputs", unit="A", group="Usable wavelength range", advanced=True),
     F("red_wave_min", "Red min wavelength [A]", "float", 0.0,
       "Trim the red cube (0 = header WAVGOOD0 if present, else first valid channel).",
-      "instrument", unit="A", group="Usable wavelength range", advanced=True),
+      "inputs", unit="A", group="Usable wavelength range", advanced=True),
     F("red_wave_max", "Red max wavelength [A]", "float", 0.0,
       "Trim the red cube (0 = header WAVGOOD1 if present, else last valid channel).",
-      "instrument", unit="A", group="Usable wavelength range", advanced=True),
+      "inputs", unit="A", group="Usable wavelength range", advanced=True),
     F("blue_grating", "Blue grating", "choice", "auto", "KCWI grating. 'auto' reads the header / file "
-      "name; if neither identifies it, BL is assumed.", "instrument", choices=["auto", *BLUE_GRATINGS],
+      "name; if neither identifies it, BL is assumed.", "inputs", choices=["auto", *BLUE_GRATINGS],
       group="Spectral resolution"),
     F("red_grating", "Red grating", "choice", "auto", "KCRM grating ('auto' as above; RL assumed if "
-      "undetected).", "instrument", choices=["auto", *RED_GRATINGS], group="Spectral resolution"),
+      "undetected).", "inputs", choices=["auto", *RED_GRATINGS], group="Spectral resolution"),
     F("slicer", "Image slicer", "choice", "auto", "IFU slicer (Large/Medium/Small). Sets the "
       "resolving power R together with the grating. 'auto' reads IFUNAM; Medium assumed otherwise.",
-      "instrument", choices=["auto", *SLICER_NAMES], group="Spectral resolution"),
+      "inputs", choices=["auto", *SLICER_NAMES], group="Spectral resolution"),
     F("blue_fwhm_A", "Blue instrumental FWHM [A]", "float", 0.0,
-      "Instrumental line-spread FWHM of the blue arm at its central wavelength. 0 = use the "
+      "Instrumental line-spread FWHM of the blue arm at its central wavelength. LEAVE EMPTY to use the "
       "nominal value lambda_c/R from the grating+slicer table. Enter a measured value (arc lamp / "
       "sky lines) if you have one -- it directly sets the velocity-dispersion zero point "
-      "(sigma_inst = FWHM/2.355).", "instrument", unit="A", group="Spectral resolution"),
+      "(sigma_inst = FWHM/2.355).", "inputs", unit="A", group="Spectral resolution", blank_default=True),
     F("red_fwhm_A", "Red instrumental FWHM [A]", "float", 0.0,
-      "As above for the red arm (0 = nominal table value).", "instrument", unit="A",
+      "As above for the red arm (empty = nominal table value).", "inputs", unit="A", blank_default=True,
       group="Spectral resolution"),
     F("convert_sb_to_flux", "Convert surface brightness to flux per spaxel", "bool", True,
       "If the cube BUNIT is per arcsec^2 (the DRP 'icubes'), multiply by the spaxel area so "
       "extracted spectra are true fluxes (1e-16 erg/s/cm2/A) and summing spaxels is physically "
-      "meaningful. Has no effect on redshifts.", "instrument", group="Units"),
+      "meaningful. Has no effect on redshifts.", "inputs", group="Units"),
     F("arm_registration", "Blue/red spatial registration", "choice", "wcs",
       "How a spaxel in the blue cube maps to the red cube. 'identity': same (x,y) index -- correct "
       "when both arms were resampled to one grid from the same IFU exposure (the KCWI+KCRM design: "
       "one telescope focus, one image slicer, split by a dichroic). 'wcs': follow the header WCS. "
       "'xcorr': measure from white-light images. 'manual': use dx, dy (under Advanced). Header WCS "
-      "zero-points can be off by arcsec, so verify in the stage-2 overlay before trusting 'wcs'.",
-      "instrument", choices=["identity", "wcs", "xcorr", "manual"], group="Registration"),
+      "zero-points can be off by arcsec, so verify in the registration check (Data tab) before trusting 'wcs'.",
+      "inputs", choices=["identity", "wcs", "xcorr", "manual"], group="Registration"),
     F("arm_dx", "Manual dx [pix]", "float", 0.0, "Red x = blue x + dx (only for 'manual').",
-      "instrument", unit="pix", group="Registration", advanced=True),
+      "inputs", unit="pix", group="Registration", advanced=True),
     F("arm_dy", "Manual dy [pix]", "float", 0.0, "Red y = blue y + dy (only for 'manual').",
-      "instrument", unit="pix", group="Registration", advanced=True),
+      "inputs", unit="pix", group="Registration", advanced=True),
 
     # ------------------------------------------------------------------ 3. NOISE
     F("sky_box_mode", "Sky-region selection", "choice", "auto",
@@ -169,7 +169,7 @@ FIELDS: List[FieldSpec] = [
       "separately for the blue and the red cube using EACH cube's own header WCS (centre, size and "
       "rotation), and the registered shapes actually used are drawn on every plot. Turn OFF to "
       "treat the regions as defined once on the blue grid and shift them with the blue/red "
-      "registration of stage 2 instead (safer if the header WCS zero-points disagree).",
+      "registration (Data tab) instead (safer if the header WCS zero-points disagree).",
       "apertures"),
     F("extraction_method", "Extraction method", "choice", "deblend",
       "'deblend': simultaneous spatial-profile (PSF-convolved Sersic / point / arc-mask) fit of ALL "

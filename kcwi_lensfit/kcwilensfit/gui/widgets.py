@@ -133,8 +133,9 @@ class FieldRow(ttk.Frame):
     def _rewrap(self, e):
         self.desc.configure(wraplength=max(240, e.width - 20))
 
-    @staticmethod
-    def _fmt(v):
+    def _fmt(self, v):
+        if self.spec.blank_default and (v is None or v == 0):
+            return ""
         if isinstance(v, float):
             return f"{v:g}"
         return "" if v is None else str(v)

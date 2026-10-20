@@ -35,7 +35,8 @@ AP_TREE_COLS = ["id", "role", "group", "shape", "x", "y", "a", "b", "angle", "pr
 class App(tk.Tk):
     def __init__(self, config_path: Optional[str] = None):
         super().__init__()
-        self.title(f"kcwilensfit {__version__} — KCWI/KCRM lens redshifts")
+        self._base_title = f"kcwilensfit {__version__} — KCWI/KCRM lens redshifts"
+        self.title(self._base_title)
         self.geometry("1500x940")
         self.minsize(1100, 700)
         self.msgq: "queue.Queue" = queue.Queue()
@@ -106,12 +107,23 @@ class App(tk.Tk):
             self.tabs[key] = tab
             self.nb.add(tab, text=title)
         self._tab_data(stage_fields["inputs"])
-        self._tab_instrument(stage_fields["instrument"])
         self._tab_noise(stage_fields["noise"])
         self._tab_apertures(stage_fields["apertures"])
         self._tab_extraction(stage_fields["extraction"])
         self._tab_fitting(stage_fields["fitting"])
         self._tab_output(stage_fields["output"])
+        tn = self.forms["inputs"].rows["target_name"].var
+        tn.trace_add("write", lambda *_: self._update_title())
+        self._update_title()
+        self.nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    def _update_title(self):
+        name = self.forms["inputs"].rows["target_name"].var.get().strip()
+        self.title(f"{self._base_title} — {name}" if name else self._base_title)
+
+    def _on_tab_changed(self, _=None):
+        if self.nb.select() == str(self.tabs["output"]):
+            self.refresh_output_preview()
 
     def _split(self, tab, specs, left_w=560):
         left = ttk.Frame(tab, width=left_w)
@@ -131,25 +143,18 @@ class App(tk.Tk):
     def _tab_data(self, specs):
         left, right = self._split(self.tabs["inputs"], specs)
         intro = ttk.Label(left, foreground=GREY, wraplength=520, justify="left",
-                          text="Welcome. Choose your reduced KCWI (blue) and/or KCRM (red) cubes, then press “Load cubes”. "
-                               "Every field below is pre-filled with a documented default and described underneath.")
+                          text="Welcome. Choose your reduced KCWI (blue) and/or KCRM (red) cubes, check the instrument "
+                               "settings below, then press “Load cubes”. Every field is pre-filled with a documented "
+                               "default and described underneath.")
         intro.pack(anchor="w", padx=8, pady=6)
         f = Form(left, specs)
         f.pack(fill="both", expand=True)
         self.forms["inputs"] = f
         bb = ttk.Frame(left); bb.pack(fill="x")
-        self._btn(bb, "Load cubes", self.do_load)
-        self.figs["data"] = FigureFrame(right)
-        self.figs["data"].pack(fill="both", expand=True)
-
-    def _tab_instrument(self, specs):
-        left, right = self._split(self.tabs["instrument"], specs)
-        f = Form(left, specs); f.pack(fill="both", expand=True)
-        self.forms["instrument"] = f
-        bb = ttk.Frame(left); bb.pack(fill="x")
-        self._btn(bb, "Apply: reload cubes with these settings", self.do_load)
-        self.figs["instrument"] = FigureFrame(right)
-        self.figs["instrument"].pack(fill="both", expand=True)
+        self._btn(bb, "Load cubes (applies these settings)", self.do_load)
+        nb = ttk.Notebook(right); nb.pack(fill="both", expand=True)
+        for key, title in (("data", "White light"), ("instrument", "Registration check")):
+            fr = FigureFrame(nb); self.figs[key] = fr; nb.add(fr, text=title)
 
     def _tab_noise(self, specs):
         left, right = self._split(self.tabs["noise"], specs)
@@ -186,7 +191,7 @@ class App(tk.Tk):
     def preview_sky_box(self, quiet=False):
         if not self.pipe.arms:
             if not quiet:
-                messagebox.showinfo("Load first", "Load the cubes (stage 1) first.")
+                messagebox.showinfo("Load first", "Load the cubes (Data tab) first.")
             return
         try:
             boxes = self._current_sky_boxes()
@@ -340,13 +345,74 @@ class App(tk.Tk):
 
     def _tab_output(self, specs):
         left, right = self._split(self.tabs["output"], specs)
+        dirbox = ttk.LabelFrame(left, text="Output directory")
+        dirbox.pack(fill="x", padx=6, pady=4)
+        self.out_dir_label = ttk.Label(dirbox, text="", wraplength=520, justify="left")
+        self.out_dir_label.pack(anchor="w", padx=6, pady=2)
+        ttk.Button(dirbox, text="Change folder…", command=self.change_out_dir).pack(anchor="w", padx=6, pady=(0, 4))
         f = Form(left, specs); f.pack(fill="both", expand=True)
         self.forms["output"] = f
         bb = ttk.Frame(left); bb.pack(fill="x")
+        self._btn(bb, "Refresh preview", self.refresh_output_preview)
         self._btn(bb, "Save all outputs", self.do_save)
         self._btn(bb, "Open output folder", self.open_out)
-        self.report_text = tk.Text(right, wrap="word", font=("Menlo", 10))
+        nb = ttk.Notebook(right); nb.pack(fill="both", expand=True)
+        sumfr = ttk.Frame(nb); nb.add(sumfr, text="Summary")
+        self.summary_text = tk.Text(sumfr, wrap="none", font=("Menlo", 10), height=12)
+        self.summary_text.pack(fill="both", expand=True)
+        for key, title in (("out_ap", "Apertures"), ("out_spec", "Spectra + z (fitted regions)")):
+            fr = FigureFrame(nb); self.figs[key] = fr; nb.add(fr, text=title)
+        repfr = ttk.Frame(nb); nb.add(repfr, text="Full report")
+        self.report_text = tk.Text(repfr, wrap="word", font=("Menlo", 10))
         self.report_text.pack(fill="both", expand=True)
+
+    def _planned_out_dir(self) -> str:
+        try:
+            d = self.forms["inputs"].rows["output_dir"].get()
+        except Exception:
+            d = self.pipe.cfg.get("output_dir", "")
+        return os.path.abspath(os.path.expanduser(d or "kcwilensfit_output"))
+
+    def change_out_dir(self):
+        p = filedialog.askdirectory(title="Output directory", initialdir=start_dir(self._planned_out_dir()), mustexist=False)
+        if p:
+            remember_dir(p)
+            self.forms["inputs"].rows["output_dir"].set(p)
+            self.refresh_output_preview()
+
+    def refresh_output_preview(self, saved: bool = False):
+        """Summary text + the aperture and fitted-spectra plots, shown BEFORE anything is written."""
+        from ..report import markdown_report, quick_summary
+        out = self._planned_out_dir()
+        self.out_dir_label.configure(text=out)
+        txt = quick_summary(self.pipe, out, saved=saved)
+        self.summary_text.configure(state="normal")
+        self.summary_text.delete("1.0", "end"); self.summary_text.insert("1.0", txt)
+        self.summary_text.configure(state="disabled")
+        if self.pipe.apertures and self.pipe.arms:
+            try:
+                self.figs["out_ap"].show(P.fig_apertures(self.pipe))
+            except Exception as e:
+                self.figs["out_ap"].clear(f"Cannot draw apertures: {e}")
+        else:
+            self.figs["out_ap"].clear("Load cubes and define apertures first.")
+        hide = P.combined_member_ids(self.pipe)
+        fitted = [a for a in self.pipe.spectra if a in self.pipe.results and a not in hide]
+        if fitted:
+            try:
+                self.figs["out_spec"].show(P.fig_spectra(
+                    self.pipe, fitted, float(self.pipe.cfg["display_smooth_A"]),
+                    windows=self.pipe.engine.static_windows() if self.pipe.engine else None))
+            except Exception as e:
+                self.figs["out_spec"].clear(f"Cannot draw spectra: {e}")
+        else:
+            self.figs["out_spec"].clear("No fitted regions yet.")
+        self.report_text.delete("1.0", "end")
+        if self.pipe.spectra:
+            try:
+                self.report_text.insert("1.0", markdown_report(self.pipe))
+            except Exception as e:
+                self.report_text.insert("1.0", f"(report preview unavailable: {e})")
 
     # ------------------------------------------------------------------ config <-> widgets
     def _populate(self, cfg: dict):
@@ -407,11 +473,12 @@ class App(tk.Tk):
             tv.delete(*tv.get_children())
         self.fit_target.set("")
         self.fit_combo["values"] = []
-        for t in (self.fit_summary, self.report_text):
+        for t in (self.fit_summary, self.report_text, self.summary_text):
             was = str(t.cget("state"))
             t.configure(state="normal"); t.delete("1.0", "end"); t.configure(state=was)
         self.progress["value"] = 0
         self.status.configure(text="Ready.")
+        self.refresh_output_preview()
         self.write("Cleared all data and settings -- ready for a new target.")
 
     def save_config_dialog(self):
@@ -492,7 +559,7 @@ class App(tk.Tk):
             self.refresh_ap_preview(quiet=True)
             self._show_load_figs()
             self.preview_sky_box(quiet=True)
-            self.write("Cubes loaded. Next: stage 3 (noise & sky) and stage 4 (apertures).")
+            self.write("Cubes loaded. Next: the Noise & sky and Apertures tabs.")
         self.run_task("Loading cubes", lambda pr: self.pipe.load(pr), done)
 
     def _show_load_figs(self):
@@ -504,7 +571,7 @@ class App(tk.Tk):
 
     def do_suggest_sky(self):
         if not self.pipe.arms:
-            messagebox.showinfo("Load first", "Load the cubes (stage 1) first.")
+            messagebox.showinfo("Load first", "Load the cubes (Data tab) first.")
             return
         if not self._apply_cfg():
             return
@@ -525,7 +592,7 @@ class App(tk.Tk):
 
     def do_sky(self):
         if not self.pipe.arms:
-            messagebox.showinfo("Load first", "Load the cubes (stage 1) first.")
+            messagebox.showinfo("Load first", "Load the cubes (Data tab) first.")
             return
         def work(pr):
             self.pipe.estimate_sky()
@@ -691,9 +758,9 @@ class App(tk.Tk):
     # ---- extraction
     def do_extract(self):
         if not self.pipe.sky:
-            messagebox.showinfo("Noise first", "Run stage 3 (Estimate sky & noise) first."); return
+            messagebox.showinfo("Noise first", "Run Estimate sky & noise (Noise & sky tab) first."); return
         if not self.ap_rows:
-            messagebox.showinfo("Apertures", "Define at least one aperture (stage 4) first."); return
+            messagebox.showinfo("Apertures", "Define at least one aperture (Apertures tab) first."); return
         def work(pr):
             self.pipe.set_apertures(self.ap_rows)
             self.pipe.extract(pr)
@@ -709,7 +776,7 @@ class App(tk.Tk):
             self._refresh_fit_targets()
             self._refresh_fit_view()
             self._refresh_ex_table()
-            self.write("Extraction finished. Next: stage 6 (redshift & kinematics).")
+            self.write("Extraction finished. Next: the Redshift & kinematics tab.")
         self.run_task("Extracting", work, done)
 
     # ---- fitting
@@ -721,7 +788,7 @@ class App(tk.Tk):
 
     def _need_spectra(self) -> bool:
         if not self.pipe.spectra:
-            messagebox.showinfo("Extract first", "Run stage 5 (Run extraction) first.")
+            messagebox.showinfo("Extract first", "Run the extraction (Extraction tab) first.")
             return False
         return True
 
@@ -877,7 +944,7 @@ class App(tk.Tk):
     def do_save(self):
         if not self.pipe.spectra:
             messagebox.showinfo("Nothing to save", "Run the extraction (and fits) first."); return
-        from ..report import markdown_report, save_outputs
+        from ..report import save_outputs
         def work(pr):
             return save_outputs(self.pipe, pr)
         def done(ok, out):
@@ -885,8 +952,7 @@ class App(tk.Tk):
             for st in ("inputs", "output"):
                 if "output_dir" in self.forms[st].rows:
                     self.forms[st].rows["output_dir"].set(out)
-            self.report_text.delete("1.0", "end")
-            self.report_text.insert("1.0", markdown_report(self.pipe))
+            self.refresh_output_preview(saved=True)
         self.run_task("Saving", work, done)
 
     def open_out(self):

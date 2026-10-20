@@ -27,7 +27,7 @@ Reduced KCRM data cube. Leave empty to use the blue arm only. Both arms are fitt
 
 *default:* `''`
 
-Variance cube ('_vcubes') matching the blue flux cube. If given it is used as the noise model; otherwise the noise is measured from a source-free sky box (stage 3).
+Variance cube ('_vcubes') matching the blue flux cube. If given it is used as the noise model; otherwise the noise is measured from a source-free sky box (Noise & sky tab).
 
 ### `red_var_cube` — Red variance cube (optional)  *(advanced)*
 
@@ -42,7 +42,7 @@ Variance cube matching the red flux cube (see above).
 Everything the pipeline writes (spectra, plots, tables, the settings actually used) goes here.
 
 
-## 2. Instrument
+## 1b. Instrument (same tab as Data)
 
 ### `blue_wave_frame` — Blue wavelength frame  *(advanced)*
 
@@ -114,13 +114,13 @@ IFU slicer (Large/Medium/Small). Sets the resolving power R together with the gr
 
 *default:* `0.0`
 
-Instrumental line-spread FWHM of the blue arm at its central wavelength. 0 = use the nominal value lambda_c/R from the grating+slicer table. Enter a measured value (arc lamp / sky lines) if you have one -- it directly sets the velocity-dispersion zero point (sigma_inst = FWHM/2.355).
+Instrumental line-spread FWHM of the blue arm at its central wavelength. LEAVE EMPTY to use the nominal value lambda_c/R from the grating+slicer table. Enter a measured value (arc lamp / sky lines) if you have one -- it directly sets the velocity-dispersion zero point (sigma_inst = FWHM/2.355).
 
 ### `red_fwhm_A` — Red instrumental FWHM [A]
 
 *default:* `0.0`
 
-As above for the red arm (0 = nominal table value).
+As above for the red arm (empty = nominal table value).
 
 ### `convert_sb_to_flux` — Convert surface brightness to flux per spaxel  *(advanced)*
 
@@ -132,7 +132,7 @@ If the cube BUNIT is per arcsec^2 (the DRP 'icubes'), multiply by the spaxel are
 
 *default:* `'wcs'` · *choices:* identity, wcs, xcorr, manual
 
-How a spaxel in the blue cube maps to the red cube. 'identity': same (x,y) index -- correct when both arms were resampled to one grid from the same IFU exposure (the KCWI+KCRM design: one telescope focus, one image slicer, split by a dichroic). 'wcs': follow the header WCS. 'xcorr': measure from white-light images. 'manual': use dx, dy (under Advanced). Header WCS zero-points can be off by arcsec, so verify in the stage-2 overlay before trusting 'wcs'.
+How a spaxel in the blue cube maps to the red cube. 'identity': same (x,y) index -- correct when both arms were resampled to one grid from the same IFU exposure (the KCWI+KCRM design: one telescope focus, one image slicer, split by a dichroic). 'wcs': follow the header WCS. 'xcorr': measure from white-light images. 'manual': use dx, dy (under Advanced). Header WCS zero-points can be off by arcsec, so verify in the registration check (Data tab) before trusting 'wcs'.
 
 ### `arm_dx` — Manual dx [pix]  *(advanced)*
 
@@ -147,7 +147,7 @@ Red x = blue x + dx (only for 'manual').
 Red y = blue y + dy (only for 'manual').
 
 
-## 3. Noise & sky
+## 2. Noise & sky
 
 ### `sky_box_mode` — Sky-region selection
 
@@ -192,16 +192,16 @@ Subtract the sky-box median spectrum from every spaxel. Removes small sky-subtra
 Resampling the KCWI slices onto a square grid correlates neighbouring spaxels, so the noise of a SUM over N spaxels grows faster than sqrt(N). The pipeline measures this from block sums in the sky box (sigma_N = sigma_1 N^alpha, alpha in [0.5,1]) and inflates aperture errors accordingly. Skipping it makes every error too optimistic.
 
 
-## 4. Apertures
+## 3. Apertures
 
 ### `sky_regions_use_wcs` — Map sky-coordinate regions with each cube's WCS
 
 *default:* `True`
 
-Regions loaded from a DS9 file in fk5/icrs (WCS) coordinates are converted to pixels separately for the blue and the red cube using EACH cube's own header WCS (centre, size and rotation), and the registered shapes actually used are drawn on every plot. Turn OFF to treat the regions as defined once on the blue grid and shift them with the blue/red registration of stage 2 instead (safer if the header WCS zero-points disagree).
+Regions loaded from a DS9 file in fk5/icrs (WCS) coordinates are converted to pixels separately for the blue and the red cube using EACH cube's own header WCS (centre, size and rotation), and the registered shapes actually used are drawn on every plot. Turn OFF to treat the regions as defined once on the blue grid and shift them with the blue/red registration (Data tab) instead (safer if the header WCS zero-points disagree).
 
 
-## 5. Extraction
+## 4. Extraction
 
 ### `extraction_method` — Extraction method
 
@@ -264,7 +264,7 @@ Mask isolated one-pixel positive outliers (cosmic-ray / hot-pixel residuals) in 
 Gaussian smoothing (sigma, Angstrom) applied to plots ONLY. Fits always use unsmoothed data: smoothing correlates neighbouring pixels and fakes S/N.
 
 
-## 6. Redshift & kinematics
+## 5. Redshift & kinematics
 
 ### `fit_arms` — Arms to fit
 
@@ -513,7 +513,7 @@ Below this median S/N per Angstrom the velocity dispersion is reported but flagg
 In non-interactive runs, adopt the best-scoring candidate redshift that is not geometrically impossible for its role. In the GUI you choose from the candidate list.
 
 
-## 7. Output
+## 6. Output
 
 ### `save_plots` — Save diagnostic plots
 

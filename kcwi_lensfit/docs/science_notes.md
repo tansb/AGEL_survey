@@ -22,7 +22,7 @@ border can never be selected as “quiet sky” (which would give zero noise and
 
 **Registration.** Blue and red are two cameras behind one slicer: the same (x, y) is the same sky by
 design, so `identity` is a valid choice, but the default is `wcs` (follow the header WCS; verify it in the
-stage-2 overlay and switch to `identity` or `xcorr` if the zero-points disagree). Header WCS zero-points
+registration check (Data tab) and switch to `identity` or `xcorr` if the zero-points disagree). Header WCS zero-points
 are set independently and can be arcseconds off; image cross-correlation is a weak test because a blue star-forming arc and a red
 quiescent core do not trace the same structure. Both are *computed and displayed* for comparison.
 Sky-coordinate region files are, at the user's request, mapped with each cube's own WCS.

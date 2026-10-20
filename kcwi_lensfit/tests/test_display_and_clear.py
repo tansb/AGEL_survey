@@ -45,3 +45,32 @@ def test_clear_fit_removes_only_that_result():
     assert p.clear_fit("A") is True
     assert list(p.results) == ["B"]
     assert p.clear_fit("A") is False
+
+
+def test_quick_summary_lists_fits_and_unfitted(tmp_path):
+    from kcwilensfit.report import quick_summary
+    p = Pipeline(log=lambda m: None)
+    _, _, a = _arm()
+    p.spectra = {"A": N(arms={"blue": a}, role="source", meta={}), "B": N(arms={"blue": a}, role="source", meta={})}
+    r = N(role="source", status="secure", z=1.3, z_err=1e-4, sigma=float("nan"), sigma_err=float("nan"),
+          kinematics_ok=True, flags=[])
+    p.results = {"A": r}
+    txt = quick_summary(p, str(tmp_path))
+    assert str(tmp_path) in txt and "1.30000" in txt and "B" in txt.split("No recorded fit")[1]
+
+
+def test_fwhm_fields_blank_by_default_in_gui_spec():
+    from kcwilensfit.schema import FIELD_BY_KEY, STAGES
+    assert FIELD_BY_KEY["blue_fwhm_A"].blank_default and FIELD_BY_KEY["red_fwhm_A"].blank_default
+    assert FIELD_BY_KEY["arm_registration"].stage == "inputs" and "instrument" not in dict(STAGES)
+
+
+def test_unblanked_spectra_plot_keeps_spike_and_window_data():
+    w, f, a = _arm()
+    a.flux[1850] += 500
+    pipe = N(spectra={"A": N(arms={"blue": a}, role="x", meta={})}, results={})
+    fig = P.fig_spectra(pipe, ["A"], windows=[(4000.0, 4010.0)], despike=False, blank_windows=False)
+    ydata = np.concatenate([ln.get_ydata() for ln in fig.axes[0].lines if len(ln.get_ydata()) == w.size])
+    assert np.nanmax(ydata) > 400
+    ln = next(l for l in fig.axes[0].lines if l.get_label() == "blue")
+    assert np.isfinite(ln.get_ydata()[(w >= 4000) & (w <= 4010)]).all()

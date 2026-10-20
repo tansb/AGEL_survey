@@ -176,6 +176,39 @@ def markdown_report(pipe) -> str:
     return "\n".join(L)
 
 
+def quick_summary(pipe, out_dir: str = "", saved: bool = False) -> str:
+    """Short plain-text overview of the current state/results, for review BEFORE saving."""
+    L = []
+    L.append(f"Target: {pipe.cfg.get('target_name', '')}")
+    if out_dir:
+        exists = os.path.isdir(out_dir)
+        L.append(f"Output directory: {out_dir}" + ("   [saved here]" if saved else
+                 ("   (exists; files with the same names will be overwritten)" if exists else "   (will be created on save)")))
+    arms = ", ".join(pipe.arms) or "none loaded"
+    L.append(f"Arms: {arms}   Apertures: {len(pipe.apertures)}   Spectra: {len(pipe.spectra)}   "
+             f"Fitted: {len(pipe.results)}")
+    if not pipe.spectra:
+        L.append("\nNothing extracted yet -- load cubes, define apertures and run the extraction first.")
+        return "\n".join(L)
+    unfitted = [k for k in pipe.spectra if k not in pipe.results]
+    L.append("")
+    if pipe.results:
+        L.append(f"{'region':<14}{'role':<10}{'status':<11}{'z':>10}{'+/-':>10}  {'sigma [km/s]':<18}flags")
+        for k, r in pipe.results.items():
+            sig = f"{r.sigma:.0f} +/- {r.sigma_err:.0f}" + ("" if r.kinematics_ok else " (?)") if np.isfinite(r.sigma) else "-"
+            z = f"{r.z:.5f}" if np.isfinite(r.z) else "-"
+            ze = f"{r.z_err:.5f}" if np.isfinite(r.z_err) else "-"
+            L.append(f"{k:<14}{r.role:<10}{r.status:<11}{z:>10}{ze:>10}  {sig:<18}{'; '.join(r.flags)}")
+    else:
+        L.append("No fits recorded yet.")
+    if unfitted:
+        L.append("\nNo recorded fit (left out of the redshift table and the saved spectra plot): " + ", ".join(unfitted))
+    if pipe.system_messages:
+        L.append("\nLens-system consistency:")
+        L += [f"  * {m}" for m in pipe.system_messages]
+    return "\n".join(L)
+
+
 def writable_output_dir(requested: str, target: str = "", log: Callable[[str], None] = print) -> str:
     """Return a directory we can really write to.
 
@@ -252,7 +285,9 @@ def save_figures(pipe, fdir: str, progress=None) -> None:
         hide = P.combined_member_ids(pipe)
         fitted = [a for a in pipe.spectra if a in pipe.results and a not in hide]
         if fitted:
-            save(P.fig_spectra(pipe, fitted, smooth_A=sm, windows=win), "04_spectra.png")
+            # raw data: sky/telluric windows stay shaded for reference but nothing is blanked or despiked
+            save(P.fig_spectra(pipe, fitted, smooth_A=sm, windows=win, despike=False, blank_windows=False),
+                 "04_spectra.png")
     k = 0
     for aid, r in pipe.results.items():
         safe = _safe(aid)

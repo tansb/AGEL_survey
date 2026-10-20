@@ -13,7 +13,7 @@ through a simple **tabbed GUI** (every input pre-filled with a documented defaul
 screen) or a one-line command-line run driven by the same JSON settings file.
 
 ```
- 1 Data → 2 Instrument → 3 Noise & sky → 4 Apertures → 5 Extraction → 6 Redshift & kinematics → 7 Output
+ 1 Data & instrument → 2 Noise & sky → 3 Apertures → 4 Extraction → 5 Redshift & kinematics → 6 Output
 ```
 
 ## Install
@@ -43,14 +43,13 @@ kcwilensfit fields                    # every setting, default and description i
 
 | tab | what you do | what you see |
 |---|---|---|
-| 1 Data | choose blue/red cubes (either is optional), output folder → **Load cubes** | white-light images |
-| 2 Instrument | wavelength frame (air/vacuum), velocity correction, usable range, grating/slicer → FWHM, blue/red registration | registration overlay: red contours on blue, blue vs red aperture outlines |
-| 3 Noise & sky | auto/manual source-free sky box → **Estimate sky & noise** | background, noise and the noise-correlation law (σ_sum ∝ N^α) |
-| 4 Apertures | table of deflectors/sources/others; load a **DS9 region file (pixel or WCS/fk5)**; auto-detect; click-to-place | the apertures **exactly as registered on each cube** |
-| 5 Extraction | deblend vs sum, seeing, grouping of images → **Run extraction** | spectra, the spatial model & residuals |
-| 6 Redshift & kinematics | **Scan** → pick a candidate (or type z) → **Fit**; or **Auto-fit ALL** | χ²(z)/line-score curves, pPXF fit, line fits, bootstrap, redshift ladder, results table with flags |
-| | | **Clear fit (this region)** discards one region's fit before saving; **Clear all (new target)** (bottom bar / File menu) resets everything for the next target |
-| 7 Output | choose what to write → **Save all outputs** | `report.md` |
+| 1 Data & instrument | choose blue/red cubes (either is optional), output folder, wavelength frame (air/vacuum), velocity correction, usable range, grating/slicer → FWHM (leave empty for the nominal value), blue/red registration → **Load cubes** | white-light images; registration overlay (red contours on blue, blue vs red aperture outlines) |
+| 2 Noise & sky | auto/manual source-free sky box → **Estimate sky & noise** | background, noise and the noise-correlation law (σ_sum ∝ N^α) |
+| 3 Apertures | table of deflectors/sources/others; load a **DS9 region file (pixel or WCS/fk5)**; auto-detect; click-to-place | the apertures **exactly as registered on each cube** |
+| 4 Extraction | deblend vs sum, seeing, grouping of images → **Run extraction** | spectra, the spatial model & residuals |
+| 5 Redshift & kinematics | **Scan** → pick a candidate (or type z) → **Fit**; or **Auto-fit ALL**; **Clear fit (this region)** discards one region's fit before saving | χ²(z)/line-score curves, pPXF fit, line fits, bootstrap, redshift ladder, results table with flags |
+| 6 Output | review the summary, output directory, aperture and spectra+z plots, then **Save all outputs** | summary table, plots and full `report.md` preview *before* anything is written |
+| | **Clear all (new target)** (bottom bar / File menu) resets everything for the next target | |
 
 ### Keeping the forms short
 
@@ -65,7 +64,7 @@ File/folder dialogs open in the folder you last used, including for the output d
 A DS9 region file saved in **fk5/icrs** is converted to pixels *separately for the blue and the
 red cube using each cube's own header WCS* (centre, size and rotation), and the shapes actually
 used are drawn on every preview. Image/physical-coordinate files are read as 1-indexed DS9 pixels of
-the blue cube and shifted to the red cube with the registration of stage 2. Turn the behaviour off
+the blue cube and shifted to the red cube with the registration of the Data tab. Turn the behaviour off
 with *“Map sky-coordinate regions with each cube's WCS”* if you distrust the header zero-points
 (they can be off by arcseconds; the registration overlay shows whether they agree).
 
